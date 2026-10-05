@@ -26,8 +26,7 @@ import type { Course } from "@/lib/types";
 
 export function EditEnrollmentDialog({ course }: { course: Course }) {
   const studentId = useAuthStore((s) => s.studentId);
-  const { students, courses, enrollments,
-    enroll, updateEnrollment
+  const { courses, enrollments, updateEnrollment
   } = useEnrollmentStore();
 
   const [open, setOpen] = useState(false);
@@ -35,7 +34,6 @@ export function EditEnrollmentDialog({ course }: { course: Course }) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   
-  const me = students.find((s) => s.studentId === studentId);
   const myEnrollments = enrollments.filter((e) => e.studentId === studentId);
 
   const courseOptions = courses
@@ -44,9 +42,6 @@ export function EditEnrollmentDialog({ course }: { course: Course }) {
       value: c.courseId,
       label: `${c.courseId} — ${c.courseTitle}`,
     }));
-
-  const courseOf = (courseId: string) =>
-    courses.find((c) => c.courseId === courseId);
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
