@@ -28,7 +28,7 @@ export default function AdminStudentsPage() {
       await removeStudent(studentId); 
     } catch (err) {
       setDeleteError((err as Error).message);
-    }
+    } 
   };
 
   const enrollmentsOf = (studentId: string) =>

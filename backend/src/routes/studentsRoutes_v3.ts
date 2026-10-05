@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { zStudentPostBody, zStudentId } from "../libs/zodValidators.js";
+import { zStudentPostBody, zStudentId, zStudentPutBody } from "../libs/zodValidators.js";
 
 import type { Student, CustomRequest } from "../libs/types.js";
 
@@ -130,7 +130,7 @@ router.post(
     try {
       // get new student info from req.body
       const body = (await req.body) as Student;
-
+ 
       // validate req.body with predefined validator
       const result = zStudentPostBody.safeParse(body); // check zod
       if (!result.success) {
@@ -182,5 +182,153 @@ router.post(
     }
   },
 );
+
+// PUT /api/v3/courses,  body = { studentId, firstName?, lastName?, program?, interests?, emails? } 
+// แก้เฉพาะ field ที่ส่งมา
+//  Role ADMIN แก้ไขข้อมูลได้ทุกคน / Role STUDENT แก้ไขได้แค่ข้อมูลของตัวเอง 
+// o กรณีไม่ใช่ของตัวเอง Status Code: 403 Forbidden
+// o ไม่พบนักศึกษา Status Code: 404 Not Found
+// o สำเร็จ Status Code: 200 OK รูปแบบ Response: { success, message, data }
+router.put(
+  "/",
+  authenticateToken,
+  checkRoles,
+  async (req: CustomRequest, res: Response) => {
+    try {
+      // validate req.body
+      const result = zStudentPutBody.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          // errors: result.error.issues[0]?.message,
+          errors: JSON.stringify(req.body),
+        });
+      }
+      const { 
+        studentId,
+        firstName,
+        lastName,
+        program,
+        interests,
+        emails } = result.data;
+      
+      // check if the student exists
+      const student = await prisma.student.findUnique({ where: { studentId } });
+      if (!student) {
+        return res.status(404).json({
+          success: false,
+          message: `Student ${studentId} does not exists`,
+        });
+      }
+      
+      // check if the user is allowed to update this student
+      const user = req.user;
+      if (user?.role === "STUDENT" && studentId !== user.studentId) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden access",
+        });
+      }
+      
+      // update only fields that were sent (skip null/undefined)
+      const updated = await prisma.student.update({
+        where: { studentId },
+        data: {
+          ...(firstName != null && { firstName }),
+          ...(lastName != null && { lastName }),
+          ...(program != null && { program }),
+          ...(interests != null && { interests }),
+          ...(emails != null && { emails }),
+        },
+      });
+      
+      return res.status(200).json({
+        success: true,
+        message: `Student ${studentId} has been updated successfully`,
+        data: updated,
+      });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: "Something is wrong, please try again",
+        error: err,
+      });
+    }
+  }
+);
+
+//  body = { studentId } ใช้ได้เฉพาะ ADMIN (checkRoleAdmin)
+// o ไม่พบนักศึกษา Status Code: 404 Not Found 
+// o สำเร็จ Status Code: 200 OK รูปแบบ Response: { success, message, data }
+// • ต้องลบ Enrollment ที่อ้างอิง studentId ก่อน แล้วค่อยลบนักศึกษา โดยใช้ 
+// prisma.$transaction([...])
+
+router.delete(
+  "/",
+  authenticateToken,
+  checkRoleAdmin,
+  async (req: CustomRequest, res: Response) => {
+    try {
+      // validate studentId
+      const result = zStudentId.safeParse(req.body?.studentId);
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: result.error.issues[0]?.message,
+        });
+      }
+      const studentId = result.data;
+
+      // check if the student exists
+      const student = await prisma.student.findUnique({ where: { studentId: studentId } });
+      if (!student) {
+        return res.status(404).json({
+          success: false,
+          message: `Student ${studentId} does not exists`,
+        });
+      }
+
+      // remove related enrollments first (they reference studentId),
+      // then remove the course itself
+      const [, deleted] = await prisma.$transaction([
+        prisma.enrollment.deleteMany({ where: { studentId: studentId } }),
+        prisma.student.delete({ where: { studentId: studentId } }),
+      ]);
+      
+      return res.status(200).json({
+        success: true,
+        message: `Student ${studentId} has been deleted successfully`,
+        data: deleted,
+      });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: "Something is wrong, please try again",
+        error: err,
+      });
+    }
+  }
+);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export default router;

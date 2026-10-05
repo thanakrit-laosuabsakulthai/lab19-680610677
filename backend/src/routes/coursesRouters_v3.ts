@@ -148,6 +148,7 @@ router.post(
 
 // PUT /api/v3/courses, body = {courseId, courseTitle?, instructors?}
 // Update specified course (ADMIN only)
+
 router.put(
   "/",
   authenticateToken,

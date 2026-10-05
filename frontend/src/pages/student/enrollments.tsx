@@ -27,18 +27,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ConfirmDeleteButton } from "@/components/confirm-button";
 import { useAuthStore } from "@/lib/auth-store";
 import { useEnrollmentStore } from "@/lib/enrollment-store";
+import { EditEnrollmentDialog } from "@/components/enrollments/edit-enrollment-dialog";
 
 export default function StudentEnrollmentsPage() {
   const studentId = useAuthStore((s) => s.studentId);
-  const { students, courses, enrollments, enroll } = useEnrollmentStore();
+  const { students, courses, enrollments,
+    enroll, dropEnrollment
+   } = useEnrollmentStore();
 
   const [open, setOpen] = useState(false);
   const [formCourse, setFormCourse] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
+    // ข้อความ error จาก Backend ตอนลบไม่สำเร็จ
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const me = students.find((s) => s.studentId === studentId);
   const myEnrollments = enrollments.filter((e) => e.studentId === studentId);
 
@@ -71,6 +76,16 @@ export default function StudentEnrollmentsPage() {
       setServerError((err as Error).message);
     } finally {
       setSubmitting(false);
+    }
+  };
+  
+  
+  const handleDeleteEnrollment = async (studentId: string, courseId: string) => {
+    setServerError(null);
+    try {
+      await dropEnrollment(studentId, courseId);
+    } catch (err) {
+      setDeleteError((err as Error).message);
     }
   };
 
@@ -139,7 +154,11 @@ export default function StudentEnrollmentsPage() {
           </DialogContent>
         </Dialog>
       </div>
-
+      
+      {deleteError && (
+        <p className="text-sm text-destructive">ลบไม่สำเร็จ: {deleteError}</p>
+      )}
+      
       <div className="rounded-lg border">
         <Table>
           <TableHeader>
@@ -148,6 +167,7 @@ export default function StudentEnrollmentsPage() {
               <TableHead>ชื่อวิชา</TableHead>
               <TableHead>ผู้สอน</TableHead>
               <TableHead>วันที่ลงทะเบียน</TableHead>
+              <TableHead className="w-24 text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -172,6 +192,15 @@ export default function StudentEnrollmentsPage() {
                     {e.enrolledAt
                       ? new Date(e.enrolledAt).toLocaleString("th-TH")
                       : "-"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <EditEnrollmentDialog course={course!} />
+                    <ConfirmDeleteButton
+                      label={`ยกเลิกการลงทะเบียน ${e.courseId}`}
+                      title={`ยกเลิกการลงทะเบียน ${e.courseId}?`}
+                      description={`ยกเลิกการลงทะเบียนวิชา ${e.courseId} ของนักศึกษา ${studentId}`}
+                      onConfirm={() => handleDeleteEnrollment(studentId!, e.courseId)}
+                    />
                   </TableCell>
                 </TableRow>
               );
